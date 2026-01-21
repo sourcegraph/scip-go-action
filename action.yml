@@ -1,0 +1,68 @@
+---
+name: Sourcegraph Go SCIP Indexer
+description: Generate SCIP data from Go source code
+author: Sourcegraph
+branding:
+  icon: code
+  color: orange
+
+inputs:
+  project_root:
+    description: Specifies the directory to index
+    default: .
+  module_root:
+    description: Specifies the directory containing the go.mod file
+    required: false
+  repository_root:
+    description: Specifies the top-level directory of the git repository
+    required: false
+  repository_remote:
+    description: Specifies the canonical name of the repository remote
+    required: false
+  module_name:
+    description: Specifies the name of the module defined by module-root
+    required: false
+  module_version:
+    description: Specifies the version of the module defined by module-root
+    required: false
+  go_version:
+    description: Go version to use for indexing (e.g., "1.22", "1.23"). Also used to link to standard library.
+    required: false
+  scip_go_version:
+    description: Version of scip-go to use (e.g., "latest", "v0.1.0")
+    default: latest
+  output:
+    description: Output file path for the SCIP index
+    default: index.scip
+  quiet:
+    description: Do not output to stdout or stderr
+    default: "false"
+  verbose:
+    description: Verbosity level (0=default, 1=verbose, 2=very verbose, 3=very very verbose)
+    default: "0"
+  skip_implementations:
+    description: Skip generating implementations
+    default: "false"
+  skip_tests:
+    description: Skip compiling tests. Will not generate SCIP indexes over tests.
+    default: "false"
+  package_patterns:
+    description: "Package patterns to index. Default: './...' indexes all packages recursively."
+    default: "./..."
+  upload:
+    description: Upload the index to a Sourcegraph instance
+    default: "false"
+  sourcegraph_url:
+    description: URL of the Sourcegraph instance (e.g., https://sourcegraph.com)
+    required: false
+  sourcegraph_token:
+    description: Sourcegraph access token for uploading indexes
+    required: false
+
+outputs:
+  index_path:
+    description: Path to the generated SCIP index file
+
+runs:
+  using: docker
+  image: Dockerfile
