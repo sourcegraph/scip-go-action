@@ -1,6 +1,8 @@
 #!/bin/sh
 set -e
 
+git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
 GOPRIVATE="${INPUT_GOPRIVATE:-}"
 GOPRIVATE_TOKEN="${INPUT_GOPRIVATE_TOKEN:-}"
 
