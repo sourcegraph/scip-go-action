@@ -7,12 +7,6 @@ branding:
   color: orange
 
 inputs:
-  goprivate:
-    description: Comma-separated list of private module patterns (e.g., "github.com/myorg/*")
-    required: false
-  goprivate_token:
-    description: GitHub token for accessing private modules specified in goprivate
-    required: false
   project_root:
     description: Specifies the directory to index
     default: .
@@ -32,8 +26,8 @@ inputs:
     description: Specifies the version of the module defined by module-root
     required: false
   scip_go_version:
-    description: Version of scip-go to use (e.g., "latest", "v0.1.0")
-    default: latest
+    description: Version of scip-go to use (e.g., "v0.1.26", "latest")
+    default: "v0.1.26"
   output:
     description: Output file path for the SCIP index
     default: index.scip
@@ -64,12 +58,9 @@ inputs:
   github_token:
     description: GitHub access token with 'public_repo' scope for repository verification when lsif.enforceAuth is enabled
     required: false
-  gitlab_token:
-    description: GitLab access token with 'read_api' scope for repository verification when lsif.enforceAuth is enabled
-    required: false
   src_cli_version:
-    description: Version of src-cli to use for uploads (e.g., "latest", "5.3.0")
-    default: latest
+    description: Version of src-cli to use for uploads (e.g., "6.12.0", "latest")
+    default: "6.12.0"
 
 outputs:
   index_path:
@@ -79,25 +70,14 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Configure private modules
-      if: inputs.goprivate != ''
-      shell: bash
-      run: |
-        echo "GOPRIVATE=${{ inputs.goprivate }}" >> "$GITHUB_ENV"
-        echo "GOPRIVATE set to: ${{ inputs.goprivate }}"
-
-    - name: Configure git credentials for private modules
-      if: inputs.goprivate != '' && inputs.goprivate_token != ''
-      shell: bash
-      run: |
-        git config --global url."https://${{ inputs.goprivate_token }}@github.com/".insteadOf "https://github.com/"
-        echo "Configured git credentials for private module access"
-
     - name: Install scip-go
       shell: bash
+      env:
+        SCIP_GO_VERSION: ${{ inputs.scip_go_version }}
       run: |
-        echo "Installing scip-go@${{ inputs.scip_go_version }}..."
-        go install "github.com/sourcegraph/scip-go/cmd/scip-go@${{ inputs.scip_go_version }}"
+        set -euo pipefail
+        echo "Installing scip-go@${SCIP_GO_VERSION}..."
+        go install "github.com/sourcegraph/scip-go/cmd/scip-go@${SCIP_GO_VERSION}"
         echo "scip-go installed successfully"
         scip-go --version || true
 
@@ -105,78 +85,81 @@ runs:
       id: scip-go
       shell: bash
       working-directory: ${{ inputs.project_root }}
+      env:
+        INPUT_OUTPUT: ${{ inputs.output }}
+        INPUT_MODULE_ROOT: ${{ inputs.module_root }}
+        INPUT_REPOSITORY_ROOT: ${{ inputs.repository_root }}
+        INPUT_REPOSITORY_REMOTE: ${{ inputs.repository_remote }}
+        INPUT_MODULE_NAME: ${{ inputs.module_name }}
+        INPUT_MODULE_VERSION: ${{ inputs.module_version }}
+        INPUT_QUIET: ${{ inputs.quiet }}
+        INPUT_VERBOSE: ${{ inputs.verbose }}
+        INPUT_SKIP_IMPLEMENTATIONS: ${{ inputs.skip_implementations }}
+        INPUT_SKIP_TESTS: ${{ inputs.skip_tests }}
+        INPUT_PACKAGE_PATTERNS: ${{ inputs.package_patterns }}
+        INPUT_PROJECT_ROOT: ${{ inputs.project_root }}
       run: |
-        ARGS=""
-        if [ -n "${{ inputs.output }}" ]; then
-          ARGS="$ARGS --output=${{ inputs.output }}"
+        set -euo pipefail
+
+        ARGS=()
+        if [ -n "$INPUT_OUTPUT" ]; then
+          ARGS+=("--output=$INPUT_OUTPUT")
         fi
-        if [ -n "${{ inputs.module_root }}" ]; then
-          ARGS="$ARGS --module-root=${{ inputs.module_root }}"
+        if [ -n "$INPUT_MODULE_ROOT" ]; then
+          ARGS+=("--module-root=$INPUT_MODULE_ROOT")
         fi
-        if [ -n "${{ inputs.repository_root }}" ]; then
-          ARGS="$ARGS --repository-root=${{ inputs.repository_root }}"
+        if [ -n "$INPUT_REPOSITORY_ROOT" ]; then
+          ARGS+=("--repository-root=$INPUT_REPOSITORY_ROOT")
         fi
-        if [ -n "${{ inputs.repository_remote }}" ]; then
-          ARGS="$ARGS --repository-remote=${{ inputs.repository_remote }}"
+        if [ -n "$INPUT_REPOSITORY_REMOTE" ]; then
+          ARGS+=("--repository-remote=$INPUT_REPOSITORY_REMOTE")
         fi
-        if [ -n "${{ inputs.module_name }}" ]; then
-          ARGS="$ARGS --module-name=${{ inputs.module_name }}"
+        if [ -n "$INPUT_MODULE_NAME" ]; then
+          ARGS+=("--module-name=$INPUT_MODULE_NAME")
         fi
-        if [ -n "${{ inputs.module_version }}" ]; then
-          ARGS="$ARGS --module-version=${{ inputs.module_version }}"
+        if [ -n "$INPUT_MODULE_VERSION" ]; then
+          ARGS+=("--module-version=$INPUT_MODULE_VERSION")
         fi
-        if [ "${{ inputs.quiet }}" = "true" ]; then
-          ARGS="$ARGS --quiet"
+        if [ "$INPUT_QUIET" = "true" ]; then
+          ARGS+=("--quiet")
         fi
-        if [ "${{ inputs.verbose }}" != "0" ]; then
+        if [ "$INPUT_VERBOSE" != "0" ]; then
           i=0
-          while [ "$i" -lt "${{ inputs.verbose }}" ]; do
-            ARGS="$ARGS -v"
+          while [ "$i" -lt "$INPUT_VERBOSE" ]; do
+            ARGS+=("-v")
             i=$((i + 1))
           done
         fi
-        if [ "${{ inputs.skip_implementations }}" = "true" ]; then
-          ARGS="$ARGS --skip-implementations"
+        if [ "$INPUT_SKIP_IMPLEMENTATIONS" = "true" ]; then
+          ARGS+=("--skip-implementations")
         fi
-        if [ "${{ inputs.skip_tests }}" = "true" ]; then
-          ARGS="$ARGS --skip-tests"
+        if [ "$INPUT_SKIP_TESTS" = "true" ]; then
+          ARGS+=("--skip-tests")
         fi
 
-        echo "Running: scip-go $ARGS ${{ inputs.package_patterns }}"
-        # shellcheck disable=SC2086
-        scip-go $ARGS "${{ inputs.package_patterns }}"
+        echo "Running: scip-go ${ARGS[*]} $INPUT_PACKAGE_PATTERNS"
+        scip-go "${ARGS[@]}" "$INPUT_PACKAGE_PATTERNS"
 
-        if [ -f "${{ inputs.output }}" ]; then
-          echo "SCIP index generated successfully: ${{ inputs.output }}"
-          echo "index_path=${{ inputs.project_root }}/${{ inputs.output }}" >> "$GITHUB_OUTPUT"
+        if [ -f "$INPUT_OUTPUT" ]; then
+          echo "SCIP index generated successfully: $INPUT_OUTPUT"
+          {
+            echo "index_path<<EOF"
+            echo "${INPUT_PROJECT_ROOT}/${INPUT_OUTPUT}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
         else
-          echo "Error: SCIP index file not found at ${{ inputs.output }}"
+          echo "Error: SCIP index file not found at $INPUT_OUTPUT"
           exit 1
         fi
 
-    - name: Install src-cli
-      if: inputs.upload == 'true'
-      shell: bash
-      run: |
-        mkdir -p "$HOME/.local/bin"
-        VERSION="${{ inputs.src_cli_version }}"
-        if [ "$VERSION" = "latest" ]; then
-          echo "Installing latest src-cli..."
-          curl -fsSL https://sourcegraph.com/.api/src-cli/src_linux_amd64 -o "$HOME/.local/bin/src"
-        else
-          echo "Installing src-cli@${VERSION}..."
-          curl -fsSL "https://github.com/sourcegraph/src-cli/releases/download/${VERSION}/src_linux_amd64" -o "$HOME/.local/bin/src"
-        fi
-        chmod +x "$HOME/.local/bin/src"
-        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-    - name: Upload SCIP index
+    - name: Validate upload inputs
       if: inputs.upload == 'true'
       shell: bash
       env:
         SRC_ENDPOINT: ${{ inputs.sourcegraph_url }}
         SRC_ACCESS_TOKEN: ${{ inputs.sourcegraph_token }}
       run: |
+        set -euo pipefail
         if [ -z "$SRC_ENDPOINT" ]; then
           echo "Error: sourcegraph_url is required when upload is enabled"
           exit 1
@@ -186,32 +169,128 @@ runs:
           exit 1
         fi
 
-        UPLOAD_ARGS="-file=${{ inputs.output }} -no-progress"
+    - name: Install src-cli
+      if: inputs.upload == 'true'
+      shell: bash
+      env:
+        SRC_CLI_VERSION: ${{ inputs.src_cli_version }}
+      run: |
+        set -euo pipefail
+        mkdir -p "$HOME/.local/bin"
+
+        case "$(uname -s)-$(uname -m)" in
+          Linux-x86_64)  BINARY="src_linux_amd64" ;;
+          Linux-aarch64) BINARY="src_linux_arm64" ;;
+          Darwin-x86_64) BINARY="src_darwin_amd64" ;;
+          Darwin-arm64)  BINARY="src_darwin_arm64" ;;
+          *) echo "Error: Unsupported platform $(uname -s)-$(uname -m)"; exit 1 ;;
+        esac
+
+        if [ "$SRC_CLI_VERSION" = "latest" ]; then
+          echo "Installing latest src-cli ($BINARY)..."
+          echo "Warning: Checksum verification not available for 'latest' version"
+          curl -fsSL "https://sourcegraph.com/.api/src-cli/$BINARY" -o "$HOME/.local/bin/src"
+        else
+          echo "Installing src-cli@${SRC_CLI_VERSION} ($BINARY)..."
+          RELEASE_URL="https://github.com/sourcegraph/src-cli/releases/download/${SRC_CLI_VERSION}"
+          curl -fsSL "${RELEASE_URL}/$BINARY" -o "$HOME/.local/bin/src"
+
+          echo "Verifying checksum..."
+          CHECKSUMS_FILE=$(mktemp)
+          curl -fsSL "${RELEASE_URL}/src-cli_${SRC_CLI_VERSION}_checksums.txt" -o "$CHECKSUMS_FILE"
+
+          EXPECTED_CHECKSUM=$(grep "  ${BINARY}\$" "$CHECKSUMS_FILE" | awk '{print $1}')
+          if [ -z "$EXPECTED_CHECKSUM" ]; then
+            echo "Error: Could not find checksum for $BINARY in checksums file"
+            rm -f "$CHECKSUMS_FILE"
+            exit 1
+          fi
+
+          if command -v sha256sum &> /dev/null; then
+            ACTUAL_CHECKSUM=$(sha256sum "$HOME/.local/bin/src" | awk '{print $1}')
+          else
+            ACTUAL_CHECKSUM=$(shasum -a 256 "$HOME/.local/bin/src" | awk '{print $1}')
+          fi
+
+          if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
+            echo "Error: Checksum verification failed"
+            echo "Expected: $EXPECTED_CHECKSUM"
+            echo "Actual:   $ACTUAL_CHECKSUM"
+            rm -f "$CHECKSUMS_FILE" "$HOME/.local/bin/src"
+            exit 1
+          fi
+
+          echo "Checksum verified successfully"
+          rm -f "$CHECKSUMS_FILE"
+        fi
+        chmod +x "$HOME/.local/bin/src"
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+    - name: Upload SCIP index
+      if: inputs.upload == 'true'
+      shell: bash
+      working-directory: ${{ inputs.project_root }}
+      env:
+        SRC_ENDPOINT: ${{ inputs.sourcegraph_url }}
+        SRC_ACCESS_TOKEN: ${{ inputs.sourcegraph_token }}
+        INPUT_OUTPUT: ${{ inputs.output }}
+        INPUT_REPOSITORY_REMOTE: ${{ inputs.repository_remote }}
+        INPUT_PROJECT_ROOT: ${{ inputs.project_root }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        set -euo pipefail
+
+        # Mask secrets to prevent accidental exposure in logs
+        if [ -n "$SRC_ACCESS_TOKEN" ]; then
+          echo "::add-mask::$SRC_ACCESS_TOKEN"
+        fi
+        if [ -n "$INPUT_GITHUB_TOKEN" ]; then
+          echo "::add-mask::$INPUT_GITHUB_TOKEN"
+        fi
+
+        # Validate URL to prevent credential exfiltration
+        if [[ ! "$SRC_ENDPOINT" =~ ^https:// ]]; then
+          echo "Error: sourcegraph_url must use HTTPS"
+          exit 1
+        fi
+        if [[ "$SRC_ENDPOINT" =~ @ ]]; then
+          echo "Error: sourcegraph_url must not contain embedded credentials"
+          exit 1
+        fi
+
+        UPLOAD_ARGS=("-file=$INPUT_OUTPUT" "-no-progress")
 
         if [ -n "$GITHUB_SHA" ]; then
-          UPLOAD_ARGS="$UPLOAD_ARGS -commit=$GITHUB_SHA"
+          UPLOAD_ARGS+=("-commit=$GITHUB_SHA")
         fi
 
-        if [ -n "${{ inputs.repository_remote }}" ]; then
-          UPLOAD_ARGS="$UPLOAD_ARGS -repo=${{ inputs.repository_remote }}"
+        if [ -n "$INPUT_REPOSITORY_REMOTE" ]; then
+          UPLOAD_ARGS+=("-repo=$INPUT_REPOSITORY_REMOTE")
         elif [ -n "$GITHUB_REPOSITORY" ]; then
-          UPLOAD_ARGS="$UPLOAD_ARGS -repo=github.com/$GITHUB_REPOSITORY"
+          UPLOAD_ARGS+=("-repo=github.com/$GITHUB_REPOSITORY")
         fi
 
-        if [ -n "${{ inputs.project_root }}" ] && [ "${{ inputs.project_root }}" != "." ]; then
-          UPLOAD_ARGS="$UPLOAD_ARGS -root=${{ inputs.project_root }}"
+        if [ -n "$INPUT_PROJECT_ROOT" ] && [ "$INPUT_PROJECT_ROOT" != "." ]; then
+          UPLOAD_ARGS+=("-root=$INPUT_PROJECT_ROOT")
         fi
 
-        if [ -n "${{ inputs.github_token }}" ]; then
-          UPLOAD_ARGS="$UPLOAD_ARGS -github-token=${{ inputs.github_token }}"
-        fi
-
-        if [ -n "${{ inputs.gitlab_token }}" ]; then
-          UPLOAD_ARGS="$UPLOAD_ARGS -gitlab-token=${{ inputs.gitlab_token }}"
+        if [ -n "$INPUT_GITHUB_TOKEN" ]; then
+          UPLOAD_ARGS+=("-github-token=$INPUT_GITHUB_TOKEN")
         fi
 
         echo "Uploading SCIP index to $SRC_ENDPOINT..."
-        echo "Running: src code-intel upload $UPLOAD_ARGS"
-        # shellcheck disable=SC2086
-        src code-intel upload $UPLOAD_ARGS
+        echo "Running: src code-intel upload -file=$INPUT_OUTPUT -no-progress [additional flags...]"
+
+        # Disable command tracing to prevent token exposure if set -x is enabled
+        { set +x; } 2>/dev/null || true
+        src code-intel upload "${UPLOAD_ARGS[@]}"
+        upload_status=$?
+
+        # Clear sensitive variables
+        unset SRC_ACCESS_TOKEN INPUT_GITHUB_TOKEN
+
+        if [ $upload_status -ne 0 ]; then
+          echo "Error: Upload failed"
+          exit $upload_status
+        fi
         echo "Upload complete"
