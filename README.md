@@ -51,6 +51,9 @@ jobs:
 | `skip_implementations` | Skip generating implementations                                                               | `false`      |
 | `skip_tests`           | Skip compiling tests. Will not generate SCIP indexes over tests.                              | `false`      |
 | `package_patterns`     | Package patterns to index. Default: './...' indexes all packages recursively.                 | `./...`      |
+| `upload`               | Upload the index to a Sourcegraph instance                                                    | `false`      |
+| `sourcegraph_url`      | URL of the Sourcegraph instance (e.g., `https://sourcegraph.com`)                             | -            |
+| `sourcegraph_token`    | Sourcegraph access token for uploading indexes                                                | -            |
 
 ## Outputs
 

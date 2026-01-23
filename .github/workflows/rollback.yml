@@ -31,6 +31,9 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Update major version tag
+        env:
+          MAJOR_VERSION: ${{ github.event.inputs.major_version }}
+          TARGET: ${{ github.event.inputs.target }}
         run: |
-          git tag -fa ${{ github.event.inputs.major_version }} ${{ github.event.inputs.target }} -m "Rollback ${{ github.event.inputs.major_version }} to ${{ github.event.inputs.target }}"
-          git push origin ${{ github.event.inputs.major_version }} --force
+          git tag -fa "${MAJOR_VERSION}" "${TARGET}" -m "Rollback ${MAJOR_VERSION} to ${TARGET}"
+          git push origin "${MAJOR_VERSION}" --force
