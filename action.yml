@@ -31,9 +31,6 @@ inputs:
   module_version:
     description: Specifies the version of the module defined by module-root
     required: false
-  go_version:
-    description: Go version to use for indexing (e.g., "1.22", "1.23"). Also used to link to standard library.
-    required: false
   scip_go_version:
     description: Version of scip-go to use (e.g., "latest", "v0.1.0")
     default: latest
@@ -70,11 +67,150 @@ inputs:
   gitlab_token:
     description: GitLab access token with 'read_api' scope for repository verification when lsif.enforceAuth is enabled
     required: false
+  src_cli_version:
+    description: Version of src-cli to use for uploads (e.g., "latest", "5.3.0")
+    default: latest
 
 outputs:
   index_path:
     description: Path to the generated SCIP index file
+    value: ${{ steps.scip-go.outputs.index_path }}
 
 runs:
-  using: docker
-  image: Dockerfile
+  using: composite
+  steps:
+    - name: Configure private modules
+      if: inputs.goprivate != ''
+      shell: bash
+      run: |
+        echo "GOPRIVATE=${{ inputs.goprivate }}" >> "$GITHUB_ENV"
+        echo "GOPRIVATE set to: ${{ inputs.goprivate }}"
+
+    - name: Configure git credentials for private modules
+      if: inputs.goprivate != '' && inputs.goprivate_token != ''
+      shell: bash
+      run: |
+        git config --global url."https://${{ inputs.goprivate_token }}@github.com/".insteadOf "https://github.com/"
+        echo "Configured git credentials for private module access"
+
+    - name: Install scip-go
+      shell: bash
+      run: |
+        echo "Installing scip-go@${{ inputs.scip_go_version }}..."
+        go install "github.com/sourcegraph/scip-go/cmd/scip-go@${{ inputs.scip_go_version }}"
+        echo "scip-go installed successfully"
+        scip-go --version || true
+
+    - name: Run scip-go
+      id: scip-go
+      shell: bash
+      working-directory: ${{ inputs.project_root }}
+      run: |
+        ARGS=""
+        if [ -n "${{ inputs.output }}" ]; then
+          ARGS="$ARGS --output=${{ inputs.output }}"
+        fi
+        if [ -n "${{ inputs.module_root }}" ]; then
+          ARGS="$ARGS --module-root=${{ inputs.module_root }}"
+        fi
+        if [ -n "${{ inputs.repository_root }}" ]; then
+          ARGS="$ARGS --repository-root=${{ inputs.repository_root }}"
+        fi
+        if [ -n "${{ inputs.repository_remote }}" ]; then
+          ARGS="$ARGS --repository-remote=${{ inputs.repository_remote }}"
+        fi
+        if [ -n "${{ inputs.module_name }}" ]; then
+          ARGS="$ARGS --module-name=${{ inputs.module_name }}"
+        fi
+        if [ -n "${{ inputs.module_version }}" ]; then
+          ARGS="$ARGS --module-version=${{ inputs.module_version }}"
+        fi
+        if [ "${{ inputs.quiet }}" = "true" ]; then
+          ARGS="$ARGS --quiet"
+        fi
+        if [ "${{ inputs.verbose }}" != "0" ]; then
+          i=0
+          while [ "$i" -lt "${{ inputs.verbose }}" ]; do
+            ARGS="$ARGS -v"
+            i=$((i + 1))
+          done
+        fi
+        if [ "${{ inputs.skip_implementations }}" = "true" ]; then
+          ARGS="$ARGS --skip-implementations"
+        fi
+        if [ "${{ inputs.skip_tests }}" = "true" ]; then
+          ARGS="$ARGS --skip-tests"
+        fi
+
+        echo "Running: scip-go $ARGS ${{ inputs.package_patterns }}"
+        # shellcheck disable=SC2086
+        scip-go $ARGS "${{ inputs.package_patterns }}"
+
+        if [ -f "${{ inputs.output }}" ]; then
+          echo "SCIP index generated successfully: ${{ inputs.output }}"
+          echo "index_path=${{ inputs.project_root }}/${{ inputs.output }}" >> "$GITHUB_OUTPUT"
+        else
+          echo "Error: SCIP index file not found at ${{ inputs.output }}"
+          exit 1
+        fi
+
+    - name: Install src-cli
+      if: inputs.upload == 'true'
+      shell: bash
+      run: |
+        VERSION="${{ inputs.src_cli_version }}"
+        if [ "$VERSION" = "latest" ]; then
+          echo "Installing latest src-cli..."
+          curl -sL https://sourcegraph.com/.api/src-cli/src_linux_amd64 -o "$HOME/.local/bin/src"
+        else
+          echo "Installing src-cli@${VERSION}..."
+          curl -sL "https://github.com/sourcegraph/src-cli/releases/download/${VERSION}/src_linux_amd64" -o "$HOME/.local/bin/src"
+        fi
+        chmod +x "$HOME/.local/bin/src"
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+    - name: Upload SCIP index
+      if: inputs.upload == 'true'
+      shell: bash
+      env:
+        SRC_ENDPOINT: ${{ inputs.sourcegraph_url }}
+        SRC_ACCESS_TOKEN: ${{ inputs.sourcegraph_token }}
+      run: |
+        if [ -z "$SRC_ENDPOINT" ]; then
+          echo "Error: sourcegraph_url is required when upload is enabled"
+          exit 1
+        fi
+        if [ -z "$SRC_ACCESS_TOKEN" ]; then
+          echo "Error: sourcegraph_token is required when upload is enabled"
+          exit 1
+        fi
+
+        UPLOAD_ARGS="-file=${{ inputs.output }} -no-progress"
+
+        if [ -n "$GITHUB_SHA" ]; then
+          UPLOAD_ARGS="$UPLOAD_ARGS -commit=$GITHUB_SHA"
+        fi
+
+        if [ -n "${{ inputs.repository_remote }}" ]; then
+          UPLOAD_ARGS="$UPLOAD_ARGS -repo=${{ inputs.repository_remote }}"
+        elif [ -n "$GITHUB_REPOSITORY" ]; then
+          UPLOAD_ARGS="$UPLOAD_ARGS -repo=github.com/$GITHUB_REPOSITORY"
+        fi
+
+        if [ -n "${{ inputs.project_root }}" ] && [ "${{ inputs.project_root }}" != "." ]; then
+          UPLOAD_ARGS="$UPLOAD_ARGS -root=${{ inputs.project_root }}"
+        fi
+
+        if [ -n "${{ inputs.github_token }}" ]; then
+          UPLOAD_ARGS="$UPLOAD_ARGS -github-token=${{ inputs.github_token }}"
+        fi
+
+        if [ -n "${{ inputs.gitlab_token }}" ]; then
+          UPLOAD_ARGS="$UPLOAD_ARGS -gitlab-token=${{ inputs.gitlab_token }}"
+        fi
+
+        echo "Uploading SCIP index to $SRC_ENDPOINT..."
+        echo "Running: src code-intel upload $UPLOAD_ARGS"
+        # shellcheck disable=SC2086
+        src code-intel upload $UPLOAD_ARGS
+        echo "Upload complete"
