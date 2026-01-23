@@ -36,6 +36,8 @@ jobs:
 | `github_token`         | GitHub access token with `public_repo` scope for repository verification when `lsif.enforceAuth` is enabled | -            |
 | `gitlab_token`         | GitLab access token with `read_api` scope for repository verification when `lsif.enforceAuth` is enabled    | -            |
 | `go_version`           | Go version to use for indexing (e.g., "1.22", "1.23"). Also used to link to standard library.               | -            |
+| `goprivate`            | Comma-separated list of private module patterns (e.g., "github.com/myorg/*")                                | -            |
+| `goprivate_token`      | GitHub token for accessing private modules specified in goprivate                                           | -            |
 | `module_name`          | Specifies the name of the module defined by module-root                                                     | -            |
 | `module_root`          | Specifies the directory containing the go.mod file                                                          | -            |
 | `module_version`       | Specifies the version of the module defined by module-root                                                  | -            |

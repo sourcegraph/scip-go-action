@@ -1,6 +1,19 @@
 #!/bin/sh
 set -e
 
+GOPRIVATE="${INPUT_GOPRIVATE:-}"
+GOPRIVATE_TOKEN="${INPUT_GOPRIVATE_TOKEN:-}"
+
+if [ -n "$GOPRIVATE" ]; then
+  export GOPRIVATE="$GOPRIVATE"
+  echo "GOPRIVATE set to: $GOPRIVATE"
+
+  if [ -n "$GOPRIVATE_TOKEN" ]; then
+    git config --global url."https://${GOPRIVATE_TOKEN}@github.com/".insteadOf "https://github.com/"
+    echo "Configured git credentials for private module access"
+  fi
+fi
+
 PROJECT_ROOT="${INPUT_PROJECT_ROOT:-.}"
 MODULE_ROOT="${INPUT_MODULE_ROOT:-}"
 REPOSITORY_ROOT="${INPUT_REPOSITORY_ROOT:-}"

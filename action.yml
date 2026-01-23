@@ -7,6 +7,12 @@ branding:
   color: orange
 
 inputs:
+  goprivate:
+    description: Comma-separated list of private module patterns (e.g., "github.com/myorg/*")
+    required: false
+  goprivate_token:
+    description: GitHub token for accessing private modules specified in goprivate
+    required: false
   project_root:
     description: Specifies the directory to index
     default: .
