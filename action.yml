@@ -158,13 +158,14 @@ runs:
       if: inputs.upload == 'true'
       shell: bash
       run: |
+        mkdir -p "$HOME/.local/bin"
         VERSION="${{ inputs.src_cli_version }}"
         if [ "$VERSION" = "latest" ]; then
           echo "Installing latest src-cli..."
-          curl -sL https://sourcegraph.com/.api/src-cli/src_linux_amd64 -o "$HOME/.local/bin/src"
+          curl -fsSL https://sourcegraph.com/.api/src-cli/src_linux_amd64 -o "$HOME/.local/bin/src"
         else
           echo "Installing src-cli@${VERSION}..."
-          curl -sL "https://github.com/sourcegraph/src-cli/releases/download/${VERSION}/src_linux_amd64" -o "$HOME/.local/bin/src"
+          curl -fsSL "https://github.com/sourcegraph/src-cli/releases/download/${VERSION}/src_linux_amd64" -o "$HOME/.local/bin/src"
         fi
         chmod +x "$HOME/.local/bin/src"
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
