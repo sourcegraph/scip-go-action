@@ -18,6 +18,8 @@ PACKAGE_PATTERNS="${INPUT_PACKAGE_PATTERNS:-./...}"
 UPLOAD="${INPUT_UPLOAD:-false}"
 SOURCEGRAPH_URL="${INPUT_SOURCEGRAPH_URL:-}"
 SOURCEGRAPH_TOKEN="${INPUT_SOURCEGRAPH_TOKEN:-}"
+GITHUB_TOKEN="${INPUT_GITHUB_TOKEN:-}"
+GITLAB_TOKEN="${INPUT_GITLAB_TOKEN:-}"
 
 if [ -n "$GO_VERSION" ]; then
   echo "Installing Go ${GO_VERSION}..."
@@ -118,6 +120,14 @@ if [ "$UPLOAD" = "true" ]; then
 
   if [ -n "$PROJECT_ROOT" ] && [ "$PROJECT_ROOT" != "." ]; then
     UPLOAD_ARGS="$UPLOAD_ARGS -root=$PROJECT_ROOT"
+  fi
+
+  if [ -n "$GITHUB_TOKEN" ]; then
+    UPLOAD_ARGS="$UPLOAD_ARGS -github-token=$GITHUB_TOKEN"
+  fi
+
+  if [ -n "$GITLAB_TOKEN" ]; then
+    UPLOAD_ARGS="$UPLOAD_ARGS -gitlab-token=$GITLAB_TOKEN"
   fi
 
   echo "Uploading SCIP index to $SOURCEGRAPH_URL..."

@@ -58,6 +58,12 @@ inputs:
   sourcegraph_token:
     description: Sourcegraph access token for uploading indexes
     required: false
+  github_token:
+    description: GitHub access token with 'public_repo' scope for repository verification when lsif.enforceAuth is enabled
+    required: false
+  gitlab_token:
+    description: GitLab access token with 'read_api' scope for repository verification when lsif.enforceAuth is enabled
+    required: false
 
 outputs:
   index_path:
