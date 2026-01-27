@@ -35,18 +35,18 @@ jobs:
           go-version-file: go.mod
 
       - name: Generate and upload SCIP index
-       uses: sourcegraph/scip-go-action@v1
-       with:
-         upload: true
-         sourcegraph-url: ${{ secrets.SRC_ENDPOINT }}
-         sourcegraph-token: ${{ secrets.SRC_ACCESS_TOKEN }}
-         github-token: ${{ secrets.GITHUB_TOKEN }}
+        uses: sourcegraph/scip-go-action@v1
+        with:
+          upload: true
+          sourcegraph-url: ${{ secrets.SRC_ENDPOINT }}
+          sourcegraph-token: ${{ secrets.SRC_ACCESS_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ## Inputs
 
 | Name                   | Description                                                                                                 | Default      |
-| ---------------------- |-------------------------------------------------------------------------------------------------------------| ------------ |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------- | ------------ |
 | `github-token`         | GitHub access token with `public_repo` scope for repository verification when `lsif.enforceAuth` is enabled | -            |
 | `go-mod-name`          | Specifies the name of the module defined by go-mod-root                                                     | -            |
 | `go-mod-root`          | Specifies the directory containing the go.mod file                                                          | -            |
@@ -156,7 +156,7 @@ Required secrets:
 - `SRC_ENDPOINT`: URL of your Sourcegraph instance (e.g., `https://sourcegraph.com`)
 - `SRC_ACCESS_TOKEN`: Sourcegraph access token with code-intel write permissions
 - `GITHUB_TOKEN`: GitHub token (optional, used for repository verification when
-`lsif.enforceAuth` is enabled on a Sourcegraph instance)
+  `lsif.enforceAuth` is enabled on a Sourcegraph instance)
 
 ## Requirements
 
