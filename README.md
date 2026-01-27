@@ -35,34 +35,34 @@ jobs:
           go-version-file: go.mod
 
       - name: Generate and upload SCIP index
-        uses: sourcegraph/scip-go-action@v1
-        with:
-          upload: true
-          sourcegraph_url: ${{ secrets.SRC_ENDPOINT }}
-          sourcegraph_token: ${{ secrets.SRC_ACCESS_TOKEN }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+       uses: sourcegraph/scip-go-action@v1
+       with:
+         upload: true
+         sourcegraph-url: ${{ secrets.SRC_ENDPOINT }}
+         sourcegraph-token: ${{ secrets.SRC_ACCESS_TOKEN }}
+         github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ## Inputs
 
 | Name                   | Description                                                                                                 | Default      |
 | ---------------------- |-------------------------------------------------------------------------------------------------------------| ------------ |
-| `github_token`         | GitHub access token with `public_repo` scope for repository verification when `lsif.enforceAuth` is enabled | -            |
-| `module_name`          | Specifies the name of the module defined by module-root                                                     | -            |
-| `module_root`          | Specifies the directory containing the go.mod file                                                          | -            |
-| `module_version`       | Specifies the version of the module defined by module-root                                                  | -            |
+| `github-token`         | GitHub access token with `public_repo` scope for repository verification when `lsif.enforceAuth` is enabled | -            |
+| `go-mod-name`          | Specifies the name of the module defined by go-mod-root                                                     | -            |
+| `go-mod-root`          | Specifies the directory containing the go.mod file                                                          | -            |
+| `go-mod-version`       | Specifies the version of the module defined by go-mod-root                                                  | -            |
 | `output`               | Output file path for the SCIP index                                                                         | `index.scip` |
-| `package_patterns`     | Package patterns to index. Default: './...' indexes all packages recursively.                               | `./...`      |
-| `project_root`         | Specifies the directory to index                                                                            | `.`          |
+| `package-patterns`     | Package patterns to index. Default: './...' indexes all packages recursively.                               | `./...`      |
+| `project-root`         | Specifies the directory to index                                                                            | `.`          |
 | `quiet`                | Do not output to stdout or stderr                                                                           | `false`      |
-| `repository_remote`    | Specifies the canonical name of the repository remote                                                       | -            |
-| `repository_root`      | Specifies the top-level directory of the git repository                                                     | -            |
-| `scip_go_version`      | Version of scip-go to use (e.g., "v0.1.26", "latest")                                                       | `v0.1.26`    |
-| `skip_implementations` | Skip generating implementations                                                                             | `false`      |
-| `skip_tests`           | Skip compiling tests. Will not generate SCIP indexes over tests.                                            | `false`      |
-| `sourcegraph_token`    | Sourcegraph access token for uploading indexes                                                              | -            |
-| `sourcegraph_url`      | URL of the Sourcegraph instance (e.g., `https://sourcegraph.com`)                                           | -            |
-| `src_cli_version`      | Version of src-cli to use for uploads (e.g., "6.12.0", "latest")                                            | `6.12.0`     |
+| `repository-remote`    | Specifies the canonical name of the repository remote                                                       | -            |
+| `repository-root`      | Specifies the top-level directory of the git repository                                                     | -            |
+| `scip-go-version`      | Version of scip-go to use (e.g., "v0.1.26", "latest")                                                       | `v0.1.26`    |
+| `skip-implementations` | Skip generating implementations                                                                             | `false`      |
+| `skip-tests`           | Skip compiling tests. Will not generate SCIP indexes over tests.                                            | `false`      |
+| `sourcegraph-token`    | Sourcegraph access token for uploading indexes                                                              | -            |
+| `sourcegraph-url`      | URL of the Sourcegraph instance (e.g., `https://sourcegraph.com`)                                           | -            |
+| `src-cli-version`      | Version of src-cli to use for uploads (e.g., "6.12.0", "latest")                                            | `6.12.0`     |
 | `upload`               | Upload the index to a Sourcegraph instance                                                                  | `false`      |
 | `verbose`              | Verbosity level (0=default, 1=verbose, 2=very verbose, 3=very very verbose)                                 | `0`          |
 
@@ -70,7 +70,7 @@ jobs:
 
 | Name         | Description                           |
 | ------------ | ------------------------------------- |
-| `index_path` | Path to the generated SCIP index file |
+| `index-path` | Path to the generated SCIP index file |
 
 ## Examples
 
@@ -81,7 +81,7 @@ For monorepos or projects where Go code is in a subdirectory:
 ```yaml
 - uses: sourcegraph/scip-go-action@v1
   with:
-    project_root: ./backend
+    project-root: ./backend
 ```
 
 ### Specific scip-go Version
@@ -89,7 +89,7 @@ For monorepos or projects where Go code is in a subdirectory:
 ```yaml
 - uses: sourcegraph/scip-go-action@v1
   with:
-    scip_go_version: v0.1.0
+    scip-go-version: v0.1.0
 ```
 
 ### Projects Without go.mod
@@ -97,8 +97,8 @@ For monorepos or projects where Go code is in a subdirectory:
 ```yaml
 - uses: sourcegraph/scip-go-action@v1
   with:
-    module_name: github.com/myorg/myproject
-    module_version: v1.0.0
+    go-mod-name: github.com/myorg/myproject
+    go-mod-version: v1.0.0
 ```
 
 ### Private Modules
@@ -146,9 +146,9 @@ upload with the `upload` key:
 - uses: sourcegraph/scip-go-action@v1
   with:
     upload: true
-    sourcegraph_url: ${{ secrets.SRC_ENDPOINT }}
-    sourcegraph_token: ${{ secrets.SRC_ACCESS_TOKEN }}
-    github_token: ${{ secrets.GITHUB_TOKEN }}
+    sourcegraph-url: ${{ secrets.SRC_ENDPOINT }}
+    sourcegraph-token: ${{ secrets.SRC_ACCESS_TOKEN }}
+    github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 Required secrets:
