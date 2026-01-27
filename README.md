@@ -2,8 +2,8 @@
 
 This action generates [SCIP](https://github.com/sourcegraph/scip) index data from
 Go source code using [scip-go](https://github.com/sourcegraph/scip-go). The SCIP
-index enables precise code intelligence features like Go to definition and Find
-references in Sourcegraph.
+index enables precise code intelligence features like **Go to definition** and **Find
+references** in Sourcegraph.
 
 ## Prerequisites
 
@@ -140,7 +140,7 @@ Or disable workspaces explicitly:
 ### Upload Index to Sourcegraph
 
 The action includes bundled `src-cli` support for uploading indexes. Enable
-upload with the `upload`:
+upload with the `upload` key:
 
 ```yaml
 - uses: sourcegraph/scip-go-action@v1
