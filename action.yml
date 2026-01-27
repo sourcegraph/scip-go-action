@@ -307,7 +307,7 @@ runs:
         {
           echo "### SCIP Index Upload"
           echo ""
-          echo "| SCIP Property | Value |"
+          echo "| Property | Value |"
           echo "|----------|-------|"
           echo "| Repository | \`$upload_repo\` |"
           echo "| Commit | [\`${upload_commit:0:12}\`](${SRC_ENDPOINT}/${upload_repo}/-/commit/${upload_commit}) |"
