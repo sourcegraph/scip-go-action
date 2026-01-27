@@ -7,65 +7,65 @@ branding:
   color: orange
 
 inputs:
-  project_root:
-    description: Specifies the directory to index
-    default: .
-  module_root:
+  github-token:
+    description: GitHub access token with 'public_repo' scope for repository verification when lsif.enforceAuth is enabled
+    required: false
+  go-mod-name:
+    description: Specifies the name of the module defined by go-mod-root
+    required: false
+  go-mod-root:
     description: Specifies the directory containing the go.mod file
     required: false
-  repository_root:
-    description: Specifies the top-level directory of the git repository
+  go-mod-version:
+    description: Specifies the version of the module defined by go-mod-root
     required: false
-  repository_remote:
-    description: Specifies the canonical name of the repository remote
-    required: false
-  module_name:
-    description: Specifies the name of the module defined by module-root
-    required: false
-  module_version:
-    description: Specifies the version of the module defined by module-root
-    required: false
-  scip_go_version:
-    description: Version of scip-go to use (e.g., "v0.1.26", "latest")
-    default: "v0.1.26"
   output:
     description: Output file path for the SCIP index
     default: index.scip
+  package-patterns:
+    description: "Package patterns to index. Default: './...' indexes all packages recursively."
+    default: "./..."
+  project-root:
+    description: Specifies the directory to index
+    default: .
   quiet:
     description: Do not output to stdout or stderr
+    default: "false"
+  repository-remote:
+    description: Specifies the canonical name of the repository remote
+    required: false
+  repository-root:
+    description: Specifies the top-level directory of the git repository
+    required: false
+  scip-go-version:
+    description: Version of scip-go to use (e.g., "v0.1.26", "latest")
+    default: "v0.1.26"
+  skip-implementations:
+    description: Skip generating implementations
+    default: "false"
+  skip-tests:
+    description: Skip compiling tests. Will not generate SCIP indexes over tests.
+    default: "false"
+  sourcegraph-token:
+    description: Sourcegraph access token for uploading indexes
+    required: false
+  sourcegraph-url:
+    description: URL of the Sourcegraph instance (e.g., https://sourcegraph.com)
+    required: false
+  src-cli-version:
+    description: Version of src-cli to use for uploads (e.g., "6.12.0", "latest")
+    default: "6.12.0"
+  upload:
+    description: Upload the index to a Sourcegraph instance
     default: "false"
   verbose:
     description: Verbosity level (0=default, 1=verbose, 2=very verbose, 3=very very verbose)
     default: "0"
-  skip_implementations:
-    description: Skip generating implementations
-    default: "false"
-  skip_tests:
-    description: Skip compiling tests. Will not generate SCIP indexes over tests.
-    default: "false"
-  package_patterns:
-    description: "Package patterns to index. Default: './...' indexes all packages recursively."
-    default: "./..."
-  upload:
-    description: Upload the index to a Sourcegraph instance
-    default: "false"
-  sourcegraph_url:
-    description: URL of the Sourcegraph instance (e.g., https://sourcegraph.com)
-    required: false
-  sourcegraph_token:
-    description: Sourcegraph access token for uploading indexes
-    required: false
-  github_token:
-    description: GitHub access token with 'public_repo' scope for repository verification when lsif.enforceAuth is enabled
-    required: false
-  src_cli_version:
-    description: Version of src-cli to use for uploads (e.g., "6.12.0", "latest")
-    default: "6.12.0"
 
 outputs:
-  index_path:
+  index-path:
     description: Path to the generated SCIP index file
-    value: ${{ steps.scip-go.outputs.index_path }}
+    value: ${{ steps.scip-go.outputs.index-path }}
 
 runs:
   using: composite
@@ -73,7 +73,7 @@ runs:
     - name: Install scip-go
       shell: bash
       env:
-        SCIP_GO_VERSION: ${{ inputs.scip_go_version }}
+        SCIP_GO_VERSION: ${{ inputs.scip-go-version }}
       run: |
         set -euo pipefail
         echo "Installing scip-go@${SCIP_GO_VERSION}..."
@@ -84,20 +84,20 @@ runs:
     - name: Run scip-go
       id: scip-go
       shell: bash
-      working-directory: ${{ inputs.project_root }}
+      working-directory: ${{ inputs.project-root }}
       env:
         INPUT_OUTPUT: ${{ inputs.output }}
-        INPUT_MODULE_ROOT: ${{ inputs.module_root }}
-        INPUT_REPOSITORY_ROOT: ${{ inputs.repository_root }}
-        INPUT_REPOSITORY_REMOTE: ${{ inputs.repository_remote }}
-        INPUT_MODULE_NAME: ${{ inputs.module_name }}
-        INPUT_MODULE_VERSION: ${{ inputs.module_version }}
+        INPUT_MODULE_ROOT: ${{ inputs.go-mod-root }}
+        INPUT_REPOSITORY_ROOT: ${{ inputs.repository-root }}
+        INPUT_REPOSITORY_REMOTE: ${{ inputs.repository-remote }}
+        INPUT_MODULE_NAME: ${{ inputs.go-mod-name }}
+        INPUT_MODULE_VERSION: ${{ inputs.go-mod-version }}
         INPUT_QUIET: ${{ inputs.quiet }}
         INPUT_VERBOSE: ${{ inputs.verbose }}
-        INPUT_SKIP_IMPLEMENTATIONS: ${{ inputs.skip_implementations }}
-        INPUT_SKIP_TESTS: ${{ inputs.skip_tests }}
-        INPUT_PACKAGE_PATTERNS: ${{ inputs.package_patterns }}
-        INPUT_PROJECT_ROOT: ${{ inputs.project_root }}
+        INPUT_SKIP_IMPLEMENTATIONS: ${{ inputs.skip-implementations }}
+        INPUT_SKIP_TESTS: ${{ inputs.skip-tests }}
+        INPUT_PACKAGE_PATTERNS: ${{ inputs.package-patterns }}
+        INPUT_PROJECT_ROOT: ${{ inputs.project-root }}
       run: |
         set -euo pipefail
 
@@ -106,7 +106,7 @@ runs:
           ARGS+=("--output=$INPUT_OUTPUT")
         fi
         if [ -n "$INPUT_MODULE_ROOT" ]; then
-          ARGS+=("--module-root=$INPUT_MODULE_ROOT")
+          ARGS+=("--go-mod-root=$INPUT_MODULE_ROOT")
         fi
         if [ -n "$INPUT_REPOSITORY_ROOT" ]; then
           ARGS+=("--repository-root=$INPUT_REPOSITORY_ROOT")
@@ -115,10 +115,10 @@ runs:
           ARGS+=("--repository-remote=$INPUT_REPOSITORY_REMOTE")
         fi
         if [ -n "$INPUT_MODULE_NAME" ]; then
-          ARGS+=("--module-name=$INPUT_MODULE_NAME")
+          ARGS+=("--go-mod-name=$INPUT_MODULE_NAME")
         fi
         if [ -n "$INPUT_MODULE_VERSION" ]; then
-          ARGS+=("--module-version=$INPUT_MODULE_VERSION")
+          ARGS+=("--go-mod-version=$INPUT_MODULE_VERSION")
         fi
         if [ "$INPUT_QUIET" = "true" ]; then
           ARGS+=("--quiet")
@@ -143,12 +143,12 @@ runs:
         if [ -f "$INPUT_OUTPUT" ]; then
           echo "SCIP index generated successfully: $INPUT_OUTPUT"
           {
-            echo "index_path<<EOF"
+            echo "index-path<<EOF"
             echo "${INPUT_PROJECT_ROOT}/${INPUT_OUTPUT}"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
         else
-          echo "Error: SCIP index file not found at $INPUT_OUTPUT"
+          echo "::error::SCIP index file not found at $INPUT_OUTPUT"
           exit 1
         fi
 
@@ -156,16 +156,16 @@ runs:
       if: inputs.upload == 'true'
       shell: bash
       env:
-        SRC_ENDPOINT: ${{ inputs.sourcegraph_url }}
-        SRC_ACCESS_TOKEN: ${{ inputs.sourcegraph_token }}
+        SRC_ENDPOINT: ${{ inputs.sourcegraph-url }}
+        SRC_ACCESS_TOKEN: ${{ inputs.sourcegraph-token }}
       run: |
         set -euo pipefail
         if [ -z "$SRC_ENDPOINT" ]; then
-          echo "Error: sourcegraph_url is required when upload is enabled"
+          echo "::error::sourcegraph_url is required when upload is enabled"
           exit 1
         fi
         if [ -z "$SRC_ACCESS_TOKEN" ]; then
-          echo "Error: sourcegraph_token is required when upload is enabled"
+          echo "::error::sourcegraph_token is required when upload is enabled"
           exit 1
         fi
 
@@ -173,7 +173,7 @@ runs:
       if: inputs.upload == 'true'
       shell: bash
       env:
-        SRC_CLI_VERSION: ${{ inputs.src_cli_version }}
+        SRC_CLI_VERSION: ${{ inputs.src-cli-version }}
       run: |
         set -euo pipefail
         mkdir -p "$HOME/.local/bin"
@@ -183,7 +183,7 @@ runs:
           Linux-aarch64) BINARY="src_linux_arm64" ;;
           Darwin-x86_64) BINARY="src_darwin_amd64" ;;
           Darwin-arm64)  BINARY="src_darwin_arm64" ;;
-          *) echo "Error: Unsupported platform $(uname -s)-$(uname -m)"; exit 1 ;;
+          *) echo "::error::Unsupported platform $(uname -s)-$(uname -m)"; exit 1 ;;
         esac
 
         if [ "$SRC_CLI_VERSION" = "latest" ]; then
@@ -201,7 +201,7 @@ runs:
 
           EXPECTED_CHECKSUM=$(grep "  ${BINARY}\$" "$CHECKSUMS_FILE" | awk '{print $1}')
           if [ -z "$EXPECTED_CHECKSUM" ]; then
-            echo "Error: Could not find checksum for $BINARY in checksums file"
+            echo "::error::Could not find checksum for $BINARY in checksums file"
             rm -f "$CHECKSUMS_FILE"
             exit 1
           fi
@@ -213,9 +213,7 @@ runs:
           fi
 
           if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
-            echo "Error: Checksum verification failed"
-            echo "Expected: $EXPECTED_CHECKSUM"
-            echo "Actual:   $ACTUAL_CHECKSUM"
+            echo "::error::Checksum verification failed. Expected: $EXPECTED_CHECKSUM, Actual: $ACTUAL_CHECKSUM"
             rm -f "$CHECKSUMS_FILE" "$HOME/.local/bin/src"
             exit 1
           fi
@@ -229,14 +227,14 @@ runs:
     - name: Upload SCIP index
       if: inputs.upload == 'true'
       shell: bash
-      working-directory: ${{ inputs.project_root }}
+      working-directory: ${{ inputs.project-root }}
       env:
-        SRC_ENDPOINT: ${{ inputs.sourcegraph_url }}
-        SRC_ACCESS_TOKEN: ${{ inputs.sourcegraph_token }}
+        SRC_ENDPOINT: ${{ inputs.sourcegraph-url }}
+        SRC_ACCESS_TOKEN: ${{ inputs.sourcegraph-token }}
         INPUT_OUTPUT: ${{ inputs.output }}
-        INPUT_REPOSITORY_REMOTE: ${{ inputs.repository_remote }}
-        INPUT_PROJECT_ROOT: ${{ inputs.project_root }}
-        INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
+        INPUT_REPOSITORY_REMOTE: ${{ inputs.repository-remote }}
+        INPUT_PROJECT_ROOT: ${{ inputs.project-root }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
         set -euo pipefail
 
@@ -250,15 +248,15 @@ runs:
 
         # Validate URL to prevent credential exfiltration
         if [[ ! "$SRC_ENDPOINT" =~ ^https:// ]]; then
-          echo "Error: sourcegraph_url must use HTTPS"
+          echo "::error::sourcegraph_url must use HTTPS"
           exit 1
         fi
         if [[ "$SRC_ENDPOINT" =~ @ ]]; then
-          echo "Error: sourcegraph_url must not contain embedded credentials"
+          echo "::error::sourcegraph_url must not contain embedded credentials"
           exit 1
         fi
 
-        UPLOAD_ARGS=("-file=$INPUT_OUTPUT" "-no-progress")
+        UPLOAD_ARGS=("-file=$INPUT_OUTPUT" "-no-progress" "-json")
 
         if [ -n "$GITHUB_SHA" ]; then
           UPLOAD_ARGS+=("-commit=$GITHUB_SHA")
@@ -283,14 +281,40 @@ runs:
 
         # Disable command tracing to prevent token exposure if set -x is enabled
         { set +x; } 2>/dev/null || true
-        src code-intel upload "${UPLOAD_ARGS[@]}"
-        upload_status=$?
+        upload_output=$(src code-intel upload "${UPLOAD_ARGS[@]}" 2>&1) || upload_status=$?
+        upload_status=${upload_status:-0}
 
         # Clear sensitive variables
         unset SRC_ACCESS_TOKEN INPUT_GITHUB_TOKEN
 
+        # Display output to logs
+        echo "$upload_output"
+
         if [ $upload_status -ne 0 ]; then
-          echo "Error: Upload failed"
+          echo "::error::Upload failed"
           exit $upload_status
         fi
+
+        # Parse JSON output for job summary
+        upload_repo=$(echo "$upload_output" | jq -r '.repo')
+        upload_commit=$(echo "$upload_output" | jq -r '.commit')
+        upload_root=$(echo "$upload_output" | jq -r '.root')
+        upload_file=$(echo "$upload_output" | jq -r '.file')
+        upload_indexer=$(echo "$upload_output" | jq -r '.indexer')
+        upload_indexer_version=$(echo "$upload_output" | jq -r '.indexerVersion')
+        upload_url=$(echo "$upload_output" | jq -r '.uploadUrl')
+
+        {
+          echo "### SCIP Index Upload"
+          echo ""
+          echo "**Repository:** \`$upload_repo\`  "
+          echo "**Commit:** [\`${upload_commit:0:12}\`](https://${upload_repo}/commit/${upload_commit})  "
+          [ -n "$upload_root" ] && [ "$upload_root" != "null" ] && echo "**Root:** \`$upload_root\`  "
+          echo "**File:** \`$upload_file\`  "
+          echo "**Indexer:** \`$upload_indexer\`  "
+          echo "**Version:** \`$upload_indexer_version\`  "
+          echo ""
+          echo "[View processing status]($upload_url)"
+        } >> "$GITHUB_STEP_SUMMARY"
+
         echo "Upload complete"
