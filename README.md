@@ -40,7 +40,6 @@ jobs:
           upload: true
           sourcegraph-url: ${{ secrets.SRC_ENDPOINT }}
           sourcegraph-token: ${{ secrets.SRC_ACCESS_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ## Inputs
@@ -52,17 +51,17 @@ jobs:
 | `go-mod-root`          | Specifies the directory containing the go.mod file                                                          | -            |
 | `go-mod-version`       | Specifies the version of the module defined by go-mod-root                                                  | -            |
 | `output`               | Output file path for the SCIP index                                                                         | `index.scip` |
-| `package-patterns`     | Package patterns to index. Default: './...' indexes all packages recursively.                               | `./...`      |
 | `project-root`         | Specifies the directory to index                                                                            | `.`          |
 | `quiet`                | Do not output to stdout or stderr                                                                           | `false`      |
+| `recursive`            | Recursively scan for go.mod files, indexing each module separately                                          | `true`       |
 | `repository-remote`    | Specifies the canonical name of the repository remote                                                       | -            |
 | `repository-root`      | Specifies the top-level directory of the git repository                                                     | -            |
-| `scip-go-version`      | Version of scip-go to use (e.g., "v0.1.26", "latest")                                                       | `v0.1.26`    |
+| `scip-go-version`      | Version of scip-go to use (e.g., "v0.1.26", "latest")                                                       | `latest`     |
 | `skip-implementations` | Skip generating implementations                                                                             | `false`      |
 | `skip-tests`           | Skip compiling tests. Will not generate SCIP indexes over tests.                                            | `false`      |
 | `sourcegraph-token`    | Sourcegraph access token for uploading indexes                                                              | -            |
 | `sourcegraph-url`      | URL of the Sourcegraph instance (e.g., `https://sourcegraph.com`)                                           | -            |
-| `src-cli-version`      | Version of src-cli to use for uploads (e.g., "6.12.0", "latest")                                            | `6.12.0`     |
+| `src-cli-version`      | Version of src-cli to use for uploads (e.g., "6.12.0", "latest")                                            | `latest`     |
 | `upload`               | Upload the index to a Sourcegraph instance                                                                  | `false`      |
 | `verbose`              | Verbosity level (0=default, 1=verbose, 2=very verbose, 3=very very verbose)                                 | `0`          |
 
@@ -82,6 +81,19 @@ For monorepos or projects where Go code is in a subdirectory:
 - uses: sourcegraph/scip-go-action@v1
   with:
     project-root: ./backend
+```
+
+### Index a Single Module
+
+By default, the action recursively finds and indexes all `go.mod` files. To index
+only a specific module, disable recursive mode:
+
+```yaml
+- uses: sourcegraph/scip-go-action@v1
+  with:
+    recursive: false
+    go-mod-root: ./cmd/myapp
+    go-mod-name: github.com/myorg/myproject/cmd/myapp
 ```
 
 ### Specific scip-go Version
@@ -117,24 +129,6 @@ before the action:
     git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
 
 - uses: sourcegraph/scip-go-action@v1
-```
-
-### Go Workspaces
-
-To use Go workspaces, set the `GOWORK` environment variable:
-
-```yaml
-- uses: sourcegraph/scip-go-action@v1
-  env:
-    GOWORK: "on"
-```
-
-Or disable workspaces explicitly:
-
-```yaml
-- uses: sourcegraph/scip-go-action@v1
-  env:
-    GOWORK: "off"
 ```
 
 ### Upload Index to Sourcegraph
