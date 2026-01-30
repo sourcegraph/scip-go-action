@@ -8,6 +8,9 @@ branding:
 
 inputs:
   # scip-go inputs
+  recursive:
+    description: Recursively scan for go.mod files, indexing each identified project independently
+    default: "true"
   go-mod-name:
     description: Specifies the name of the module defined by go-mod-root
     required: false
@@ -20,9 +23,6 @@ inputs:
   output:
     description: Output file path for the SCIP index
     default: index.scip
-  package-patterns:
-    description: "Package patterns to index. Default: './...' indexes all packages recursively."
-    default: "./..."
   project-root:
     description: Specifies the directory to index
     default: .
@@ -67,7 +67,7 @@ inputs:
 
 outputs:
   index-path:
-    description: Path to the generated SCIP index file
+    description: Path to the generated SCIP index file(s), comma-separated when recursive
     value: ${{ steps.scip-go.outputs.index-path }}
 
 runs:
@@ -89,70 +89,88 @@ runs:
       shell: bash
       working-directory: ${{ inputs.project-root }}
       env:
+        INPUT_RECURSIVE: ${{ inputs.recursive }}
         INPUT_OUTPUT: ${{ inputs.output }}
         INPUT_MODULE_ROOT: ${{ inputs.go-mod-root }}
-        INPUT_REPOSITORY_ROOT: ${{ inputs.repository-root }}
-        INPUT_REPOSITORY_REMOTE: ${{ inputs.repository-remote }}
         INPUT_MODULE_NAME: ${{ inputs.go-mod-name }}
         INPUT_MODULE_VERSION: ${{ inputs.go-mod-version }}
+        INPUT_REPOSITORY_ROOT: ${{ inputs.repository-root }}
+        INPUT_REPOSITORY_REMOTE: ${{ inputs.repository-remote }}
         INPUT_QUIET: ${{ inputs.quiet }}
         INPUT_VERBOSE: ${{ inputs.verbose }}
         INPUT_SKIP_IMPLEMENTATIONS: ${{ inputs.skip-implementations }}
         INPUT_SKIP_TESTS: ${{ inputs.skip-tests }}
-        INPUT_PACKAGE_PATTERNS: ${{ inputs.package-patterns }}
         INPUT_PROJECT_ROOT: ${{ inputs.project-root }}
       run: |
         set -euo pipefail
 
-        ARGS=()
-        if [ -n "$INPUT_OUTPUT" ]; then
-          ARGS+=("--output=$INPUT_OUTPUT")
-        fi
-        if [ -n "$INPUT_MODULE_ROOT" ]; then
-          ARGS+=("--go-mod-root=$INPUT_MODULE_ROOT")
-        fi
-        if [ -n "$INPUT_REPOSITORY_ROOT" ]; then
-          ARGS+=("--repository-root=$INPUT_REPOSITORY_ROOT")
-        fi
-        if [ -n "$INPUT_REPOSITORY_REMOTE" ]; then
-          ARGS+=("--repository-remote=$INPUT_REPOSITORY_REMOTE")
-        fi
-        if [ -n "$INPUT_MODULE_NAME" ]; then
-          ARGS+=("--go-mod-name=$INPUT_MODULE_NAME")
-        fi
-        if [ -n "$INPUT_MODULE_VERSION" ]; then
-          ARGS+=("--go-mod-version=$INPUT_MODULE_VERSION")
-        fi
-        if [ "$INPUT_QUIET" = "true" ]; then
-          ARGS+=("--quiet")
-        fi
-        if [ "$INPUT_VERBOSE" != "0" ]; then
-          i=0
-          while [ "$i" -lt "$INPUT_VERBOSE" ]; do
-            ARGS+=("-v")
-            i=$((i + 1))
-          done
-        fi
-        if [ "$INPUT_SKIP_IMPLEMENTATIONS" = "true" ]; then
-          ARGS+=("--skip-implementations")
-        fi
-        if [ "$INPUT_SKIP_TESTS" = "true" ]; then
-          ARGS+=("--skip-tests")
-        fi
+        COMMON_ARGS=()
+        [ -n "$INPUT_REPOSITORY_ROOT" ] && COMMON_ARGS+=("--repository-root=$INPUT_REPOSITORY_ROOT")
+        [ -n "$INPUT_REPOSITORY_REMOTE" ] && COMMON_ARGS+=("--repository-remote=$INPUT_REPOSITORY_REMOTE")
+        [ "$INPUT_QUIET" = "true" ] && COMMON_ARGS+=("--quiet")
+        [ "$INPUT_SKIP_IMPLEMENTATIONS" = "true" ] && COMMON_ARGS+=("--skip-implementations")
+        [ "$INPUT_SKIP_TESTS" = "true" ] && COMMON_ARGS+=("--skip-tests")
+        for ((i=0; i<INPUT_VERBOSE; i++)); do COMMON_ARGS+=("-v"); done
 
-        echo "Running: scip-go ${ARGS[*]} $INPUT_PACKAGE_PATTERNS"
-        scip-go "${ARGS[@]}" "$INPUT_PACKAGE_PATTERNS"
+        index_module() {
+          local mod_dir="$1" mod_name="$2" output_file="$3"
+          local args=("${COMMON_ARGS[@]}" "--output=$output_file" "--module-root=$mod_dir" "--module-name=$mod_name")
+          [ -n "$INPUT_MODULE_VERSION" ] && args+=("--module-version=$INPUT_MODULE_VERSION")
 
-        if [ -f "$INPUT_OUTPUT" ]; then
-          echo "SCIP index generated successfully: $INPUT_OUTPUT"
+          echo "Running: scip-go ${args[*]} ./..."
+          if scip-go "${args[@]}" "./..." && [ -f "$output_file" ]; then
+            echo "SCIP index generated: $output_file"
+            return 0
+          else
+            echo "::error::Failed to index module: $mod_name"
+            return 1
+          fi
+        }
+
+        if [ "$INPUT_RECURSIVE" = "true" ]; then
+          echo "Scanning for go.mod files..."
+          INDEX_PATHS=()
+          SUCCESS=0 FAILED=0
+          RESULTS_FILE=$(mktemp)
+
+          while IFS= read -r gomod; do
+            mod_dir=$(dirname "$gomod")
+            mod_name=$(grep -m1 '^module ' "$gomod" | awk '{print $2}')
+            output_file="${mod_dir}/${INPUT_OUTPUT}"
+            [ "$mod_dir" = "." ] && output_file="$INPUT_OUTPUT"
+
+            echo "::group::Indexing: $mod_name ($mod_dir)"
+            if index_module "$mod_dir" "$mod_name" "$output_file"; then
+              INDEX_PATHS+=("${INPUT_PROJECT_ROOT}/${output_file}")
+              echo "{\"path\":\"$mod_dir\",\"output\":\"$output_file\",\"module\":\"$mod_name\",\"status\":\"success\"}" >> "$RESULTS_FILE"
+              SUCCESS=$((SUCCESS + 1))
+            else
+              echo "{\"path\":\"$mod_dir\",\"module\":\"$mod_name\",\"status\":\"index_failed\"}" >> "$RESULTS_FILE"
+              FAILED=$((FAILED + 1))
+            fi
+            echo "::endgroup::"
+          done < <(find . -name 'go.mod' -type f | sort)
+
+          echo "Indexing complete: $SUCCESS succeeded, $FAILED failed"
+          [ ${#INDEX_PATHS[@]} -eq 0 ] && echo "::error::No SCIP indexes generated" && exit 1
+
           {
-            echo "index-path<<EOF"
-            echo "${INPUT_PROJECT_ROOT}/${INPUT_OUTPUT}"
-            echo "EOF"
+            echo "index-path=$(IFS=','; echo "${INDEX_PATHS[*]}")"
+            echo "results-file=$RESULTS_FILE"
           } >> "$GITHUB_OUTPUT"
+
+          if [ "$FAILED" -gt 0 ] && [ "$SUCCESS" -eq 0 ]; then exit 1; fi
         else
-          echo "::error::SCIP index file not found at $INPUT_OUTPUT"
-          exit 1
+          args=("${COMMON_ARGS[@]}" "--output=$INPUT_OUTPUT")
+          [ -n "$INPUT_MODULE_ROOT" ] && args+=("--module-root=$INPUT_MODULE_ROOT")
+          [ -n "$INPUT_MODULE_NAME" ] && args+=("--module-name=$INPUT_MODULE_NAME")
+          [ -n "$INPUT_MODULE_VERSION" ] && args+=("--module-version=$INPUT_MODULE_VERSION")
+
+          echo "Running: scip-go ${args[*]} ./..."
+          scip-go "${args[@]}" "./..."
+
+          [ ! -f "$INPUT_OUTPUT" ] && echo "::error::SCIP index not found: $INPUT_OUTPUT" && exit 1
+          echo "index-path=${INPUT_PROJECT_ROOT}/${INPUT_OUTPUT}" >> "$GITHUB_OUTPUT"
         fi
 
     - name: Validate upload inputs
@@ -234,10 +252,12 @@ runs:
       env:
         SRC_ENDPOINT: ${{ inputs.sourcegraph-url }}
         SRC_ACCESS_TOKEN: ${{ inputs.sourcegraph-token }}
+        INPUT_RECURSIVE: ${{ inputs.recursive }}
         INPUT_OUTPUT: ${{ inputs.output }}
         INPUT_REPOSITORY_REMOTE: ${{ inputs.repository-remote }}
         INPUT_PROJECT_ROOT: ${{ inputs.project-root }}
         INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+        RESULTS_FILE: ${{ steps.scip-go.outputs.results-file }}
       run: |
         set -euo pipefail
 
@@ -259,67 +279,177 @@ runs:
           exit 1
         fi
 
-        UPLOAD_ARGS=("-file=$INPUT_OUTPUT" "-no-progress" "-json")
+        build_upload_args() {
+          local file="$1"
+          local root="$2"
 
-        if [ -n "$GITHUB_SHA" ]; then
-          UPLOAD_ARGS+=("-commit=$GITHUB_SHA")
+          UPLOAD_ARGS=("-file=$file" "-no-progress" "-json")
+
+          if [ -n "$GITHUB_SHA" ]; then
+            UPLOAD_ARGS+=("-commit=$GITHUB_SHA")
+          fi
+
+          if [ -n "$INPUT_REPOSITORY_REMOTE" ]; then
+            UPLOAD_ARGS+=("-repo=$INPUT_REPOSITORY_REMOTE")
+          elif [ -n "$GITHUB_REPOSITORY" ]; then
+            UPLOAD_ARGS+=("-repo=github.com/$GITHUB_REPOSITORY")
+          fi
+
+          if [ -n "$root" ] && [ "$root" != "." ]; then
+            UPLOAD_ARGS+=("-root=$root")
+          fi
+
+          if [ -n "$INPUT_GITHUB_TOKEN" ]; then
+            UPLOAD_ARGS+=("-github-token=$INPUT_GITHUB_TOKEN")
+          fi
+        }
+
+        upload_single_index() {
+          local file="$1"
+          local root="$2"
+          local module="$3"
+
+          build_upload_args "$file" "$root"
+
+          echo "Uploading: $file (root: ${root:-.})"
+
+          { set +x; } 2>/dev/null || true
+          if upload_output=$(src code-intel upload "${UPLOAD_ARGS[@]}" 2>&1); then
+            echo "$upload_output"
+            echo "success|$module|$root|$upload_output"
+            return 0
+          else
+            echo "::error file=${file}::Upload failed for module: $module"
+            echo "$upload_output"
+            echo "failed|$module|$root|$upload_output"
+            return 1
+          fi
+        }
+
+        generate_summary() {
+          local results_file="$1"
+          local upload_success="$2"
+          local upload_failed="$3"
+
+          {
+            echo "### SCIP Index Upload Summary"
+            echo ""
+            echo "**Results:** $upload_success succeeded, $upload_failed failed"
+            echo ""
+            echo "| Module | Root | Status | Details |"
+            echo "|--------|------|--------|---------|"
+
+            while IFS='|' read -r status module root output; do
+              if [ "$status" = "success" ]; then
+                upload_url=$(echo "$output" | jq -r '.uploadUrl // empty')
+                if [ -n "$upload_url" ]; then
+                  echo "| \`$module\` | \`${root:-.}\` | ✅ | [View upload]($upload_url) |"
+                else
+                  echo "| \`$module\` | \`${root:-.}\` | ✅ | Uploaded |"
+                fi
+              elif [ "$status" = "failed" ]; then
+                echo "| \`$module\` | \`${root:-.}\` | ❌ | Upload failed |"
+              elif [ "$status" = "index_failed" ]; then
+                echo "| \`$module\` | \`${root:-.}\` | ⚠️ | Index failed (skipped) |"
+              fi
+            done < "$results_file"
+          } >> "$GITHUB_STEP_SUMMARY"
+        }
+
+        if [ "$INPUT_RECURSIVE" = "true" ] && [ -n "$RESULTS_FILE" ] && [ -f "$RESULTS_FILE" ]; then
+          echo "Uploading multiple SCIP indexes..."
+
+          UPLOAD_RESULTS=$(mktemp)
+          UPLOAD_SUCCESS=0
+          UPLOAD_FAILED=0
+
+          while IFS= read -r line; do
+            status=$(echo "$line" | jq -r '.status')
+            mod_path=$(echo "$line" | jq -r '.path')
+            mod_name=$(echo "$line" | jq -r '.module')
+            output_file=$(echo "$line" | jq -r '.output // empty')
+
+            if [ "$status" = "success" ] && [ -n "$output_file" ]; then
+              echo "::group::Uploading module: $mod_name"
+
+              if [ "$mod_path" = "." ]; then
+                root_path="$INPUT_PROJECT_ROOT"
+              elif [ "$INPUT_PROJECT_ROOT" = "." ]; then
+                root_path="$mod_path"
+              else
+                root_path="${INPUT_PROJECT_ROOT}/${mod_path}"
+              fi
+              [ "$root_path" = "." ] && root_path=""
+
+              if result=$(upload_single_index "$output_file" "$root_path" "$mod_name"); then
+                echo "$result" >> "$UPLOAD_RESULTS"
+                UPLOAD_SUCCESS=$((UPLOAD_SUCCESS + 1))
+              else
+                echo "$result" >> "$UPLOAD_RESULTS"
+                UPLOAD_FAILED=$((UPLOAD_FAILED + 1))
+              fi
+
+              echo "::endgroup::"
+            else
+              echo "index_failed|$mod_name|$mod_path|" >> "$UPLOAD_RESULTS"
+            fi
+          done < "$RESULTS_FILE"
+
+          echo "Upload complete: $UPLOAD_SUCCESS succeeded, $UPLOAD_FAILED failed"
+
+          generate_summary "$UPLOAD_RESULTS" "$UPLOAD_SUCCESS" "$UPLOAD_FAILED"
+
+          rm -f "$UPLOAD_RESULTS" "$RESULTS_FILE"
+
+          # Clear sensitive variables
+          unset SRC_ACCESS_TOKEN INPUT_GITHUB_TOKEN
+
+          if [ "$UPLOAD_FAILED" -gt 0 ] && [ "$UPLOAD_SUCCESS" -eq 0 ]; then
+            echo "::error::All uploads failed"
+            exit 1
+          fi
+        else
+          build_upload_args "$INPUT_OUTPUT" "$INPUT_PROJECT_ROOT"
+
+          echo "Uploading SCIP index to $SRC_ENDPOINT..."
+          echo "Running: src code-intel upload -file=$INPUT_OUTPUT -no-progress [additional flags...]"
+
+          { set +x; } 2>/dev/null || true
+          upload_output=$(src code-intel upload "${UPLOAD_ARGS[@]}" 2>&1) || upload_status=$?
+          upload_status=${upload_status:-0}
+
+          # Clear sensitive variables
+          unset SRC_ACCESS_TOKEN INPUT_GITHUB_TOKEN
+
+          echo "$upload_output"
+
+          if [ $upload_status -ne 0 ]; then
+            echo "::error::Upload failed"
+            exit $upload_status
+          fi
+
+          upload_repo=$(echo "$upload_output" | jq -r '.repo')
+          upload_commit=$(echo "$upload_output" | jq -r '.commit')
+          upload_root=$(echo "$upload_output" | jq -r '.root')
+          upload_file=$(echo "$upload_output" | jq -r '.file')
+          upload_indexer=$(echo "$upload_output" | jq -r '.indexer')
+          upload_indexer_version=$(echo "$upload_output" | jq -r '.indexerVersion')
+          upload_url=$(echo "$upload_output" | jq -r '.uploadUrl')
+
+          {
+            echo "### SCIP Index Upload"
+            echo ""
+            echo "| Property | Value |"
+            echo "|----------|-------|"
+            echo "| Repository | \`$upload_repo\` |"
+            echo "| Commit | [\`${upload_commit:0:12}\`](${SRC_ENDPOINT}/${upload_repo}/-/commit/${upload_commit}) |"
+            [ -n "$upload_root" ] && [ "$upload_root" != "null" ] && echo "| Root | \`$upload_root\` |"
+            echo "| File | \`$upload_file\` |"
+            echo "| Indexer | \`$upload_indexer\` |"
+            echo "| Version | \`$upload_indexer_version\` |"
+            echo ""
+            echo "[View processing status]($upload_url)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "Upload complete"
         fi
-
-        if [ -n "$INPUT_REPOSITORY_REMOTE" ]; then
-          UPLOAD_ARGS+=("-repo=$INPUT_REPOSITORY_REMOTE")
-        elif [ -n "$GITHUB_REPOSITORY" ]; then
-          UPLOAD_ARGS+=("-repo=github.com/$GITHUB_REPOSITORY")
-        fi
-
-        if [ -n "$INPUT_PROJECT_ROOT" ] && [ "$INPUT_PROJECT_ROOT" != "." ]; then
-          UPLOAD_ARGS+=("-root=$INPUT_PROJECT_ROOT")
-        fi
-
-        if [ -n "$INPUT_GITHUB_TOKEN" ]; then
-          UPLOAD_ARGS+=("-github-token=$INPUT_GITHUB_TOKEN")
-        fi
-
-        echo "Uploading SCIP index to $SRC_ENDPOINT..."
-        echo "Running: src code-intel upload -file=$INPUT_OUTPUT -no-progress [additional flags...]"
-
-        # Disable command tracing to prevent token exposure if set -x is enabled
-        { set +x; } 2>/dev/null || true
-        upload_output=$(src code-intel upload "${UPLOAD_ARGS[@]}" 2>&1) || upload_status=$?
-        upload_status=${upload_status:-0}
-
-        # Clear sensitive variables
-        unset SRC_ACCESS_TOKEN INPUT_GITHUB_TOKEN
-
-        # Display output to logs
-        echo "$upload_output"
-
-        if [ $upload_status -ne 0 ]; then
-          echo "::error::Upload failed"
-          exit $upload_status
-        fi
-
-        # Parse JSON output for job summary
-        upload_repo=$(echo "$upload_output" | jq -r '.repo')
-        upload_commit=$(echo "$upload_output" | jq -r '.commit')
-        upload_root=$(echo "$upload_output" | jq -r '.root')
-        upload_file=$(echo "$upload_output" | jq -r '.file')
-        upload_indexer=$(echo "$upload_output" | jq -r '.indexer')
-        upload_indexer_version=$(echo "$upload_output" | jq -r '.indexerVersion')
-        upload_url=$(echo "$upload_output" | jq -r '.uploadUrl')
-
-        {
-          echo "### SCIP Index Upload"
-          echo ""
-          echo "| Property | Value |"
-          echo "|----------|-------|"
-          echo "| Repository | \`$upload_repo\` |"
-          echo "| Commit | [\`${upload_commit:0:12}\`](${SRC_ENDPOINT}/${upload_repo}/-/commit/${upload_commit}) |"
-          [ -n "$upload_root" ] && [ "$upload_root" != "null" ] && echo "| Root | \`$upload_root\` |"
-          echo "| File | \`$upload_file\` |"
-          echo "| Indexer | \`$upload_indexer\` |"
-          echo "| Version | \`$upload_indexer_version\` |"
-          echo ""
-          echo "[View processing status]($upload_url)"
-        } >> "$GITHUB_STEP_SUMMARY"
-
-        echo "Upload complete"
