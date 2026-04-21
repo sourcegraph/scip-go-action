@@ -11,8 +11,8 @@ inputs:
   recursive:
     description: Recursively scan for go.mod files, indexing each identified project independently
     default: "true"
-  go-mod-name:
-    description: Specifies the name of the module defined by go-mod-root
+  go-mod-path:
+    description: Overrides the module path inferred from go.mod
     required: false
   go-mod-root:
     description: Specifies the directory containing the go.mod file
@@ -32,11 +32,8 @@ inputs:
   repository-remote:
     description: Specifies the canonical name of the repository remote
     required: false
-  repository-root:
-    description: Specifies the top-level directory of the git repository
-    required: false
   scip-go-version:
-    description: Version of scip-go to use (e.g., "v0.1.26", "latest")
+    description: Version of scip-go to use (e.g., "v0.2.1", "latest")
     default: latest
   skip-implementations:
     description: Skip generating implementations
@@ -80,7 +77,7 @@ runs:
       run: |
         set -euo pipefail
         echo "Installing scip-go@${SCIP_GO_VERSION}..."
-        go install "github.com/sourcegraph/scip-go/cmd/scip-go@${SCIP_GO_VERSION}"
+        go install "github.com/scip-code/scip-go/cmd/scip-go@${SCIP_GO_VERSION}"
         echo "scip-go installed successfully"
         scip-go --version || true
 
@@ -92,9 +89,8 @@ runs:
         INPUT_RECURSIVE: ${{ inputs.recursive }}
         INPUT_OUTPUT: ${{ inputs.output }}
         INPUT_MODULE_ROOT: ${{ inputs.go-mod-root }}
-        INPUT_MODULE_NAME: ${{ inputs.go-mod-name }}
+        INPUT_MODULE_PATH: ${{ inputs.go-mod-path }}
         INPUT_MODULE_VERSION: ${{ inputs.go-mod-version }}
-        INPUT_REPOSITORY_ROOT: ${{ inputs.repository-root }}
         INPUT_REPOSITORY_REMOTE: ${{ inputs.repository-remote }}
         INPUT_QUIET: ${{ inputs.quiet }}
         INPUT_VERBOSE: ${{ inputs.verbose }}
@@ -105,16 +101,15 @@ runs:
         set -euo pipefail
 
         COMMON_ARGS=()
-        [ -n "$INPUT_REPOSITORY_ROOT" ] && COMMON_ARGS+=("--repository-root=$INPUT_REPOSITORY_ROOT")
         [ -n "$INPUT_REPOSITORY_REMOTE" ] && COMMON_ARGS+=("--repository-remote=$INPUT_REPOSITORY_REMOTE")
         [ "$INPUT_QUIET" = "true" ] && COMMON_ARGS+=("--quiet")
         [ "$INPUT_SKIP_IMPLEMENTATIONS" = "true" ] && COMMON_ARGS+=("--skip-implementations")
         [ "$INPUT_SKIP_TESTS" = "true" ] && COMMON_ARGS+=("--skip-tests")
-        for ((i=0; i<INPUT_VERBOSE; i++)); do COMMON_ARGS+=("-v"); done
+        for ((i=0; i<INPUT_VERBOSE; i++)); do COMMON_ARGS+=("-V"); done
 
         index_module() {
           local mod_dir="$1" mod_name="$2" output_file="$3"
-          local args=("${COMMON_ARGS[@]}" "--output=$output_file" "--module-root=$mod_dir" "--module-name=$mod_name")
+          local args=("${COMMON_ARGS[@]}" "--output=$output_file" "--module-root=$mod_dir" "--module-path=$mod_name")
           [ -n "$INPUT_MODULE_VERSION" ] && args+=("--module-version=$INPUT_MODULE_VERSION")
 
           echo "Running: scip-go ${args[*]} ./..."
@@ -163,7 +158,7 @@ runs:
         else
           args=("${COMMON_ARGS[@]}" "--output=$INPUT_OUTPUT")
           [ -n "$INPUT_MODULE_ROOT" ] && args+=("--module-root=$INPUT_MODULE_ROOT")
-          [ -n "$INPUT_MODULE_NAME" ] && args+=("--module-name=$INPUT_MODULE_NAME")
+          [ -n "$INPUT_MODULE_PATH" ] && args+=("--module-path=$INPUT_MODULE_PATH")
           [ -n "$INPUT_MODULE_VERSION" ] && args+=("--module-version=$INPUT_MODULE_VERSION")
 
           echo "Running: scip-go ${args[*]} ./..."
