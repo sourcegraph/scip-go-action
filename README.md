@@ -1,7 +1,7 @@
 # Sourcegraph Go SCIP Indexer GitHub Action
 
 This action generates [SCIP](https://github.com/sourcegraph/scip) index data from
-Go source code using [scip-go](https://github.com/sourcegraph/scip-go). The SCIP
+Go source code using [scip-go](https://github.com/scip-code/scip-go). The SCIP
 index enables precise code intelligence features like **Go to definition** and **Find
 references** in Sourcegraph.
 
@@ -35,7 +35,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Generate and upload SCIP index
-        uses: sourcegraph/scip-go-action@v1
+        uses: sourcegraph/scip-go-action@v2
         with:
           upload: true
           sourcegraph-url: ${{ secrets.SRC_ENDPOINT }}
@@ -47,7 +47,7 @@ jobs:
 | Name                   | Description                                                                                                 | Default      |
 | ---------------------- | ----------------------------------------------------------------------------------------------------------- | ------------ |
 | `github-token`         | GitHub access token with `public_repo` scope for repository verification when `lsif.enforceAuth` is enabled | -            |
-| `go-mod-name`          | Specifies the name of the module defined by go-mod-root                                                     | -            |
+| `go-mod-path`          | Overrides the module path inferred from go.mod                                                              | -            |
 | `go-mod-root`          | Specifies the directory containing the go.mod file                                                          | -            |
 | `go-mod-version`       | Specifies the version of the module defined by go-mod-root                                                  | -            |
 | `output`               | Output file path for the SCIP index                                                                         | `index.scip` |
@@ -55,8 +55,7 @@ jobs:
 | `quiet`                | Do not output to stdout or stderr                                                                           | `false`      |
 | `recursive`            | Recursively scan for go.mod files, indexing each module separately                                          | `true`       |
 | `repository-remote`    | Specifies the canonical name of the repository remote                                                       | -            |
-| `repository-root`      | Specifies the top-level directory of the git repository                                                     | -            |
-| `scip-go-version`      | Version of scip-go to use (e.g., "v0.1.26", "latest")                                                       | `latest`     |
+| `scip-go-version`      | Version of scip-go to use (e.g., "v0.2.1", "latest")                                                        | `latest`     |
 | `skip-implementations` | Skip generating implementations                                                                             | `false`      |
 | `skip-tests`           | Skip compiling tests. Will not generate SCIP indexes over tests.                                            | `false`      |
 | `sourcegraph-token`    | Sourcegraph access token for uploading indexes                                                              | -            |
@@ -78,7 +77,7 @@ jobs:
 For monorepos or projects where Go code is in a subdirectory:
 
 ```yaml
-- uses: sourcegraph/scip-go-action@v1
+- uses: sourcegraph/scip-go-action@v2
   with:
     project-root: ./backend
 ```
@@ -89,27 +88,27 @@ By default, the action recursively finds and indexes all `go.mod` files. To inde
 only a specific module, disable recursive mode:
 
 ```yaml
-- uses: sourcegraph/scip-go-action@v1
+- uses: sourcegraph/scip-go-action@v2
   with:
     recursive: false
     go-mod-root: ./cmd/myapp
-    go-mod-name: github.com/myorg/myproject/cmd/myapp
+    go-mod-path: github.com/myorg/myproject/cmd/myapp
 ```
 
 ### Specific scip-go Version
 
 ```yaml
-- uses: sourcegraph/scip-go-action@v1
+- uses: sourcegraph/scip-go-action@v2
   with:
-    scip-go-version: v0.1.0
+    scip-go-version: v0.2.1
 ```
 
 ### Projects Without go.mod
 
 ```yaml
-- uses: sourcegraph/scip-go-action@v1
+- uses: sourcegraph/scip-go-action@v2
   with:
-    go-mod-name: github.com/myorg/myproject
+    go-mod-path: github.com/myorg/myproject
     go-mod-version: v1.0.0
 ```
 
@@ -128,7 +127,7 @@ before the action:
     echo "GOPRIVATE=github.com/myorg/*" >> "$GITHUB_ENV"
     git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
 
-- uses: sourcegraph/scip-go-action@v1
+- uses: sourcegraph/scip-go-action@v2
 ```
 
 ### Upload Index to Sourcegraph
@@ -137,7 +136,7 @@ The action includes bundled `src-cli` support for uploading indexes. Enable
 upload with the `upload` key:
 
 ```yaml
-- uses: sourcegraph/scip-go-action@v1
+- uses: sourcegraph/scip-go-action@v2
   with:
     upload: true
     sourcegraph-url: ${{ secrets.SRC_ENDPOINT }}
@@ -154,4 +153,4 @@ Required secrets:
 
 ## Requirements
 
-- The project must have a valid `go.mod` file (or use `module_name` input)
+- The project must have a valid `go.mod` file (or use `go-mod-path` input)
