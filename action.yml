@@ -79,8 +79,17 @@ runs:
         SCIP_GO_VERSION: ${{ inputs.scip-go-version }}
       run: |
         set -euo pipefail
-        echo "Installing scip-go@${SCIP_GO_VERSION}..."
-        go install "github.com/scip-code/scip-go/cmd/scip-go@${SCIP_GO_VERSION}"
+
+        # The module was renamed from sourcegraph/scip-go to scip-code/scip-go
+        # in v0.2.0. Pick the correct module path for the requested version.
+        MODULE="github.com/scip-code/scip-go"
+        # Versions before v0.2.0 used the old module path
+        if [[ "$SCIP_GO_VERSION" =~ ^v?0\.[01]\. ]]; then
+          MODULE="github.com/sourcegraph/scip-go"
+        fi
+
+        echo "Installing scip-go@${SCIP_GO_VERSION} from ${MODULE}..."
+        go install "${MODULE}/cmd/scip-go@${SCIP_GO_VERSION}"
         echo "scip-go installed successfully"
         scip-go --version || true
 
