@@ -37,7 +37,7 @@ inputs:
     required: false
   scip-go-version:
     description: Version of scip-go to use (e.g., "v0.1.26", "latest")
-    default: v0.1.26
+    default: latest
   skip-implementations:
     description: Skip generating implementations
     default: "false"
