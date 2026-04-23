@@ -1,7 +1,7 @@
 # Sourcegraph Go SCIP Indexer GitHub Action
 
 This action generates [SCIP](https://github.com/sourcegraph/scip) index data from
-Go source code using [scip-go](https://github.com/sourcegraph/scip-go). The SCIP
+Go source code using [scip-go](https://github.com/scip-code/scip-go). The SCIP
 index enables precise code intelligence features like **Go to definition** and **Find
 references** in Sourcegraph.
 

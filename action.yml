@@ -37,7 +37,7 @@ inputs:
     required: false
   scip-go-version:
     description: Version of scip-go to use (e.g., "v0.1.26", "latest")
-    default: latest
+    default: v0.1.26
   skip-implementations:
     description: Skip generating implementations
     default: "false"
@@ -80,7 +80,7 @@ runs:
       run: |
         set -euo pipefail
         echo "Installing scip-go@${SCIP_GO_VERSION}..."
-        go install "github.com/sourcegraph/scip-go/cmd/scip-go@${SCIP_GO_VERSION}"
+        go install "github.com/scip-code/scip-go/cmd/scip-go@${SCIP_GO_VERSION}"
         echo "scip-go installed successfully"
         scip-go --version || true
 
