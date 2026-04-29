@@ -311,12 +311,12 @@ runs:
           { set +x; } 2>/dev/null || true
           if upload_output=$(src code-intel upload "${UPLOAD_ARGS[@]}" 2>&1); then
             echo "$upload_output"
-            echo "success|$module|$root|$upload_output"
+            echo "success|$module|$root|$upload_output" >> "$UPLOAD_RESULTS"
             return 0
           else
             echo "::error file=${file}::Upload failed for module: $module"
             echo "$upload_output"
-            echo "failed|$module|$root|$upload_output"
+            echo "failed|$module|$root|$upload_output" >> "$UPLOAD_RESULTS"
             return 1
           fi
         }
@@ -376,11 +376,9 @@ runs:
               fi
               [ "$root_path" = "." ] && root_path=""
 
-              if result=$(upload_single_index "$output_file" "$root_path" "$mod_name"); then
-                echo "$result" >> "$UPLOAD_RESULTS"
+              if upload_single_index "$output_file" "$root_path" "$mod_name"; then
                 UPLOAD_SUCCESS=$((UPLOAD_SUCCESS + 1))
               else
-                echo "$result" >> "$UPLOAD_RESULTS"
                 UPLOAD_FAILED=$((UPLOAD_FAILED + 1))
               fi
 
